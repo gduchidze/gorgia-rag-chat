@@ -1,10 +1,7 @@
 import re
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from chatbot import create_gorgia_agent
-from apscheduler.schedulers.background import BackgroundScheduler
-import requests
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": ["http://localhost:3000", "http://localhost:3001", "https://gorgia-rag-front.vercel.app/"]}})
@@ -20,20 +17,6 @@ def format_response(response):
             return match.group(1)
 
     return cleaned_response or response
-
-def ping_server():
-    try:
-        response = requests.get('http://localhost:5000/api/health')
-        print(f"Ping status: {response.status_code}")
-    except Exception as e:
-        print(f"Ping failed: {str(e)}")
-
-def init_scheduler():
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(ping_server, 'interval', minutes=14)
-    scheduler.start()
-    print("Scheduler started!")
-
 @app.route('/api/chat', methods=['POST'])
 def chat():
     try:
@@ -74,5 +57,4 @@ def health_check():
     return jsonify({'status': 'healthy'}), 200
 
 if __name__ == '__main__':
-    init_scheduler()
     app.run(debug=True, port=5000)
