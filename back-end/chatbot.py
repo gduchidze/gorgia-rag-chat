@@ -123,7 +123,7 @@ def rewrite_query(llm, user_input: str, chat_history: list = None) -> str:
     Rewrites user input into a clean search query while considering chat history.
 
     Args:
-        llm: Language model instance
+        llm: model instance
         user_input: Current user input to process
         chat_history: List of previous chat messages (optional)
 
@@ -136,7 +136,7 @@ def rewrite_query(llm, user_input: str, chat_history: list = None) -> str:
     history_text = ""
     if chat_history:
         history_messages = []
-        for msg in chat_history[-3:]:
+        for msg in chat_history[-6:]:
             if isinstance(msg, HumanMessage):
                 history_messages.append(f"მომხმარებელი: {msg.content}")
             elif isinstance(msg, SystemMessage):
@@ -150,6 +150,8 @@ def rewrite_query(llm, user_input: str, chat_history: list = None) -> str:
         System: გაზქურა search_products - დან
         User: KUMTEL ის მინდა
         System: KUMTEL გაზქურა search_products - დან
+    
+    გაითვალისწინე: ეს ეხება მხოლოდ უკვე ნაჩვენები არსებული პროდუქტის დამატებით შეკითხვას.
 
     წინა საუბრის კონტექსტი:
     {history_text}
@@ -186,11 +188,12 @@ class GorgiaAgent:
 
     წესები:
 
-    1. "search_docs" კითხვა შეიცავს ინფორმაციის მოთხოვნას პროცედურების, წესების ,სერვისების შესახებ ან ზოგადად შეკითხვებს გორგიას შესახებ. გასათვალისწინებელია რომ პროდუქტებზე დასმულ შეკითხვებზე არ გამოიყენო ეს ფუნქცია "search_docs".
+    1. "search_docs" კითხვა შეიცავს ინფორმაციის მოთხოვნას პროცედურების, წესების ,სერვისების შესახებ ან ზოგადად შეკითხვებს გორგიას შესახებ.
+        გაითვალისწინე: **არასდროს** გამოიყენო პროდუქტების შესახებ- "search_docs".
 
-    2. "search_products" გამოიყენე: ნებისმიერი სახით პროდუქტის/ბრენდის მოთხოვნაზე.
+    2. "search_products" გამოიყენე: პროდუქტების ან ბრენდის პროდუქტის/ბრენდის მოთხოვნაზე.
 
-    3."none" - სხვა დანარჩენ შემთხვევებში გამოიყენე, მაგალითად დამატებითი შეკითხვები პროდუქზე , მისალმება, დამშვიდობება და სხვა:
+    3.  "none" - სხვა დანარჩენ შემთხვევებში გამოიყენე, მაგალითად დამატებითი შეკითხვები პროდუქზე , მისალმება, დამშვიდობება და სხვა:
     
     მაგ: User: გაზქურა მინდა?
         System: გაზქურები search_products - დან
@@ -289,8 +292,8 @@ class GorgiaAgent:
 
             self.chat_history.append(SystemMessage(content=history_content))
 
-            if len(self.chat_history) > 20:
-                self.chat_history = self.chat_history[-20:]
+            if len(self.chat_history) > 10:
+                self.chat_history = self.chat_history[-10:]
 
             print(f"Chat history after: {self.chat_history}")
             return response
@@ -335,22 +338,3 @@ def create_gorgia_agent():
     - დაასრულეთ დამატებითი დახმარების შეთავაზებით, თუ საჭიროა
     """
     return GorgiaAgent(llm, tools, system_prompt)
-#
-# if __name__ == "__main__":
-#     agent = create_gorgia_agent()
-#     chat_history = []
-#     print("Gorgia ჩატბოტი დაიწყო! დასასრულებლად აკრიფეთ 'exit' ან 'quit'")
-#     while True:
-#         try:
-#             user_input = input("\nთქვენი კითხვა: ")
-#             if user_input.lower() in ['exit', 'quit']:
-#                 print("\nმადლობა რომ ისარგებლეთ Gorgia ჩატბოტით!")
-#                 break
-#             print("\nვეძებ პასუხს...")
-#             response = agent.run(user_input, chat_history)
-#             print("\nპასუხი:")
-#             print(response)
-#             chat_history.extend([HumanMessage(content=user_input), SystemMessage(content=response)])
-#             print(chat_history)
-#         except Exception as e:
-#             print(f"\nშეცდომა: {str(e)}")
