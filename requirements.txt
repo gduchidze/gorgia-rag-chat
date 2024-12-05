@@ -1,7 +1,11 @@
 pinecone
 langchain-pinecone
 langchain-openai
+langchain-core
 langchain
 openai
 python-dotenv
+flask
 flask-cors
+requests
+gunicorn
