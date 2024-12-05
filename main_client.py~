@@ -1,0 +1,140 @@
+import os
+from langgraph.sdk import LangGraph
+from langgraph.components import PromptComponent, LLMComponent, ToolComponent
+from langgraph.execution import GraphExecutor
+from typing import List
+from pinecone import Pinecone
+from langchain_openai import OpenAI, OpenAIEmbeddings
+from langchain_pinecone import PineconeVectorStore
+
+OPENAI_API_KEY = "sk-MckIJPkrp42Ev4_EBkj6aQ"
+OPENAI_BASE_URL = "https://api.ailab.ge"
+MODEL_NAME = "tbilisi-ai-lab-2.0"
+
+EMBEDDINGS_API_KEY = "hHnQ6vbPMRKj7eCs5IG6QmjFTyYjVccW"
+EMBEDDINGS_API_BASE = "https://api.deepinfra.com/v1/openai"
+EMBEDDINGS_MODEL = "BAAI/bge-m3"
+
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+PINECONE_ENVIRONMENT = os.getenv("PINECONE_ENVIRONMENT")
+pc = Pinecone(api_key=PINECONE_API_KEY)
+
+class CustomEmbeddings(OpenAIEmbeddings):
+    def __init__(self):
+        super().__init__(openai_api_key=EMBEDDINGS_API_KEY)
+        self.client = OpenAI(api_key=EMBEDDINGS_API_KEY, base_url=EMBEDDINGS_API_BASE)
+        self.model = EMBEDDINGS_MODEL
+
+    def embed_query(self, text: str) -> List[float]:
+        response = self.client.embeddings.create(
+            model=self.model,
+            input=text,
+            encoding_format="float"
+        )
+        return response.data[0].embedding
+
+
+# Search products tool
+def search_products(query: str) -> str:
+    try:
+        vector_store = PineconeVectorStore(
+            embedding=CustomEmbeddings(),
+            index_name=PINECONE_INDEX_NAME,
+            namespace="gorgia_products"
+        )
+        results = vector_store.similarity_search(query, k=5)
+        formatted_results = [
+            f"Product {i + 1}:\n"
+            f"Name: {doc.metadata.get('name', 'N/A')}\n"
+            f"Category: {doc.metadata.get('category', 'N/A')}\n"
+            f"Price: {doc.metadata.get('price', 'N/A')}\n"
+            f"URL: {doc.metadata.get('product_url', 'N/A')}\n"
+            for i, doc in enumerate(results)
+        ]
+        return "\n".join(formatted_results) + f"\nFound {len(results)} products.\n"
+    except Exception as e:
+        return f"Error in product search: {str(e)}"
+
+
+# Search documents tool
+def search_docs(query: str) -> str:
+    try:
+        vector_store = PineconeVectorStore(
+            embedding=CustomEmbeddings(),
+            index_name=PINECONE_INDEX_NAME,
+            namespace="gorgia_docs"
+        )
+        results = vector_store.similarity_search(query, k=3)
+        return "\n".join(
+            [f"Document {i + 1}:\n{doc.page_content}" for i, doc in enumerate(results)]
+        )
+    except Exception as e:
+        return f"Error in document search: {str(e)}"
+
+
+# LangGraph pipeline
+graph = LangGraph()
+
+# Define components
+prompt_component = PromptComponent(
+    name="Generate Prompt",
+    prompt_template="""You are a helpful assistant for Gorgia, a Georgian company. Based on the user's query:
+- Use 'search_products' for product-related queries.
+- Use 'search_docs' for general or document-related queries.
+
+User's Query: {query}""",
+)
+
+llm_component = LLMComponent(
+    name="Generate Response",
+    api_key=OPENAI_API_KEY,
+    base_url=OPENAI_BASE_URL,
+    model_name=MODEL_NAME,
+)
+
+tool_search_products = ToolComponent(
+    name="Search Products Tool",
+    tool_func=search_products,
+    description="Search for products in the Gorgia product database.",
+)
+
+tool_search_docs = ToolComponent(
+    name="Search Docs Tool",
+    tool_func=search_docs,
+    description="Search for documents in Gorgia documentation.",
+)
+
+# Define graph structure
+graph.add_nodes([prompt_component, llm_component, tool_search_products, tool_search_docs])
+graph.connect(prompt_component, llm_component, inputs={"query": "query"})
+
+graph.conditionally_connect(
+    llm_component,
+    tool_search_products,
+    condition=lambda query: "product" in query.lower(),
+)
+
+graph.conditionally_connect(
+    llm_component,
+    tool_search_docs,
+    condition=lambda query: "document" in query.lower() or "info" in query.lower(),
+)
+
+# Executor to handle query interaction
+executor = GraphExecutor(graph)
+
+
+# Interact with the chatbot
+def interact_with_bot(user_query: str) -> str:
+    try:
+        response = executor.run({"query": user_query})
+        return response
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+# Main execution for testing
+if __name__ == "__main__":
+    user_input = input("Enter your query: ")
+    result = interact_with_bot(user_input)
+    print(result)
