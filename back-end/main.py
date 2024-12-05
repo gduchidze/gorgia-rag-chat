@@ -74,5 +74,5 @@ def health_check():
     return jsonify({'status': 'healthy'}), 200
 
 if __name__ == '__main__':
-    # init_scheduler()
+    init_scheduler()
     app.run(debug=True, port=5000)
