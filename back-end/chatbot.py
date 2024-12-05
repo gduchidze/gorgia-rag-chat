@@ -36,7 +36,7 @@ class CustomEmbeddings(OpenAIEmbeddings):
 
 
 @tool("search_products")
-def search_products(query: str) -> str:
+def search_products(query: str, chat_history: list = None) -> str:
     """Search for products in Gorgia database."""
     try:
         llm = ChatOpenAI(
@@ -46,7 +46,7 @@ def search_products(query: str) -> str:
             temperature=0.1
         )
 
-        clean_query = rewrite_query(llm, query)
+        clean_query = rewrite_query(llm, query, chat_history)
         print(f"Clean query: {clean_query}")
 
         vector_store = PineconeVectorStore(
@@ -95,7 +95,7 @@ def search_products(query: str) -> str:
 
 
 @tool("search_docs")
-def search_docs(query: str) -> str:
+def search_docs(query: str, chat_history: list = None) -> str:
     """Search for all kind of general information."""
     try:
         llm = ChatOpenAI(
@@ -105,7 +105,7 @@ def search_docs(query: str) -> str:
             temperature=0
         )
 
-        clean_query = rewrite_query(llm, query)
+        clean_query = rewrite_query(llm, query, chat_history)
 
         vector_store = PineconeVectorStore(
             embedding=CustomEmbeddings(),
@@ -118,19 +118,50 @@ def search_docs(query: str) -> str:
         return f"დოკუმენტის ძიების შეცდომა: {str(e)}"
 
 
-def rewrite_query(llm, user_input: str) -> str:
+def rewrite_query(llm, user_input: str, chat_history: list = None) -> str:
     """
-    Rewrites user input into a clean search query.
-    """
-    prompt = """
-    გადააკეთე მომხმარებლის შეკითხვა მხოლოდ საძიებო ტექსტად.
-    დატოვე მხოლოდ საძიებო სიტყვები.
+    Rewrites user input into a clean search query while considering chat history.
 
-    შეკითხვა: "{input}"
+    Args:
+        llm: Language model instance
+        user_input: Current user input to process
+        chat_history: List of previous chat messages (optional)
+
+    Returns:
+        str: Clean search query
+    """
+    if not chat_history:
+        chat_history = []
+
+    history_text = ""
+    if chat_history:
+        history_messages = []
+        for msg in chat_history[-3:]:
+            if isinstance(msg, HumanMessage):
+                history_messages.append(f"მომხმარებელი: {msg.content}")
+            elif isinstance(msg, SystemMessage):
+                history_messages.append(f"სისტემა: {msg.content}")
+        history_text = "\n".join(history_messages)
+
+    prompt = f"""
+    გადააკეთე მომხმარებლის შეკითხვა მხოლოდ საძიებო ტექსტად.
+    დატოვე მხოლოდ საძიებო სიტყვები. გაითვალისწინე წინა საუბრის კონტექსტი თუ საჭიროა
+    მაგ: User: გაზქურა მინდა?
+        System: გაზქურა search_products - დან
+        User: KUMTEL ის მინდა
+        System: KUMTEL გაზქურა search_products - დან
+
+    წინა საუბრის კონტექსტი:
+    {history_text}
+
+    მიმდინარე შეკითხვა: "{user_input}"
+
+    გაითვალისწინე კონტექსტი და დააბრუნე მხოლოდ რელევანტური საძიებო სიტყვები.
+
     ახალი შეკითხვა: """
 
     response = llm.invoke([
-        SystemMessage(content=prompt.format(input=user_input))
+        SystemMessage(content=prompt)
     ])
     return response.content.strip()
 
@@ -150,21 +181,25 @@ class GorgiaAgent:
 """
 
     def _get_tool_decision(self, query: str) -> str:
-            decision_prompt = """
+            decision_prompt = f"""
     შეაფასე მომხმარებლის შეკითხვა და გადაწყვიტე რომელი ინსტრუმენტი უნდა გამოვიყენოთ.
 
     წესები:
 
-    1. "search_docs" გამოიყენე ყველა სახის ზოგადი შეკითხვისთვის
+    1. "search_docs" კითხვა შეიცავს ინფორმაციის მოთხოვნას პროცედურების, წესების ,სერვისების შესახებ ან ზოგადად შეკითხვებს გორგიას შესახებ. გასათვალისწინებელია რომ პროდუქტებზე დასმულ შეკითხვებზე არ გამოიყენო ეს ფუნქცია "search_docs".
 
-    2. "search_products" გამოიყენე მხოლოდ როცა: ნებისმიერი სახით პროდუქტის მოთხოვნაზე,კონკრეტულ პროდუქტზე, ბრენდზე ან პროდუქტის ფასზე
+    2. "search_products" გამოიყენე: ნებისმიერი სახით პროდუქტის/ბრენდის მოთხოვნაზე.
 
-    3. "none" გამოიყენე მხოლოდ:
-       - მისალმება/დამშვიდობება
-       - მარტივი მადლობა
+    3."none" - სხვა დანარჩენ შემთხვევებში გამოიყენე, მაგალითად დამატებითი შეკითხვები პროდუქზე , მისალმება, დამშვიდობება და სხვა:
+    
+    მაგ: User: გაზქურა მინდა?
+        System: გაზქურები search_products - დან
+        User: KUMTEL ის მინდა
+        System: KUMTEL გაზქურები search_products - დან
 
-    აუცილებლად გამოიყენე search_docs თუ კითხვა შეიცავს ინფორმაციის მოთხოვნას პროცედურების, წესების ან სერვისების შესახებ.
 
+    ჩატის ისტორია:{self.chat_history} 
+    
     მიმდინარე შეკითხვა: "{query}"
 
     დააბრუნე მხოლოდ ერთი სიტყვა: search_docs, search_products ან none.
@@ -184,7 +219,7 @@ class GorgiaAgent:
             return {"type": "error", "message": "Tool not found"}
 
         try:
-            response = tool.invoke(tool_input)
+            response = tool.invoke({"query": tool_input, "chat_history": self.chat_history})
 
             if tool_name == "search_products":
                 try:
@@ -193,7 +228,7 @@ class GorgiaAgent:
                     return {"type": "error", "message": "Failed to parse products response"}
 
             elif tool_name == "search_docs":
-                format_prompt = """
+                format_prompt = f"""
     მოცემულია მომხმარებლის კითხვა და საინფორმაციო ბაზიდან მოძიებული ინფორმაცია.
     გთხოვთ, დააფორმატოთ პასუხი ისე, რომ:
     1. იყოს პირდაპირი პასუხი კითხვაზე
@@ -285,7 +320,7 @@ def create_gorgia_agent():
     თქვენ ხართ Gorgia-ს დახმარების ასისტენტი. თქვენი მიზანია მომხმარებლებს მიაწოდოთ ზუსტი და სასარგებლო ინფორმაცია ბუნებრივი დიალოგის ფორმით.
 
     ძირითადი წესები:
-    1. ყოველთვის გამოიყენეთ search_docs ზოგადი ინფორმაციისთვის რომ არ მიაწოდო არასწორი ინფორმაცია მომხმარებელს ყოველთვის შეამოწმე სპეციალურ დოკუმენტში.
+    1. ყოველთვის გამოიყენეთ search_docs ზოგადი ინფორმაციისთვის რომ არ მიაწოდო არასწორი ინფორმაცია მომხმარებელს ყოველთვის შეამოწმე სპეციალურ დოკუმენტში მაგრამ არავითარ შემთხვევაში პროდუქტებზე დასმულ შეკითხვებზე ან დამატებით შეკითხვებზე უკვე ნაჩვენები პროდუქტისთვის.
     2. გამოიყენეთ search_products პროდუქტების ან ბრენდების შესახებ ინფორმაციისთვის
     3. პასუხები უნდა იყოს მოკლე, გასაგები და ინფორმატიული
     4. არ ახსენოთ ინსტრუმენტები ან ტექნიკური დეტალები პასუხებში
@@ -294,7 +329,7 @@ def create_gorgia_agent():
     1. გადააფორმატეთ ის მარტივ, გასაგებ პუნქტებად
     2. მოაშორეთ ტექნიკური დეტალები და ფორმატირება
     3. დაწერეთ ბუნებრივი, საუბრის სტილში
-
+    
     პასუხის ფორმატი:
     - გამოიყენეთ მარტივი, გასაგები ენა
     - დაასრულეთ დამატებითი დახმარების შეთავაზებით, თუ საჭიროა
