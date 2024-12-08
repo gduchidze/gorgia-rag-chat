@@ -141,8 +141,8 @@ class GorgiaAgent:
                     self.state["messages"].append(
                         SystemMessage(content=str(result["response"]))
                     )
-            if len(self.state["messages"]) > 10:
-                self.state["messages"] = 0
+            if len(self.state["messages"]) > 6:
+                self.state["messages"] = []
 
             return result["response"] or {
                 "type": "error",
