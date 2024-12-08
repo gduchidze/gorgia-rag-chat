@@ -37,6 +37,11 @@ class CustomEmbeddings(DeepInfraEmbeddings):
             deepinfra_api_token=DEEPINFRA_API_TOKEN
         )
 
+# class CustomEmbeddings(OpenAIEmbeddings):
+#     def __init__(self):
+#         super().__init__(openai_api_key=EMBEDDINGS_API_KEY)
+#         self.client = OpenAI(api_key=EMBEDDINGS_API_KEY, base_url=EMBEDDINGS_API_BASE)
+#         self.model = EMBEDDINGS_MODEL
 
 class SearchProductsTool(BaseTool):
     name: str = "search_products"
