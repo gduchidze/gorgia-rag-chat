@@ -8,4 +8,5 @@ python-dotenv
 flask
 flask-cors
 requests
-gunicorn
+langchain_community
+langgraph
