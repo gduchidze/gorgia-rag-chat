@@ -171,7 +171,7 @@ class SearchDocsTool(BaseTool):
                 pinecone_api_key = PINECONE_API_KEY
 
             )
-            results = vector_store.similarity_search(clean_query, k=3)
+            results = vector_store.similarity_search(clean_query, k=1)
             docs_content = "\n".join([f"{i}:\n{doc.page_content}" for i, doc in enumerate(results)])
 
             return format_docs_response(llm, query, docs_content)
