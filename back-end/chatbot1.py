@@ -39,8 +39,8 @@ class CustomEmbeddings(DeepInfraEmbeddings):
 
 # class CustomEmbeddings(OpenAIEmbeddings):
 #     def __init__(self):
-#         super().__init__(openai_api_key=EMBEDDINGS_API_KEY)
-#         self.client = OpenAI(api_key=EMBEDDINGS_API_KEY, base_url=EMBEDDINGS_API_BASE)
+#         super().__init__(openai_api_key=DEEPINFRA_API_TOKEN)
+#         self.client = OpenAI(api_key=DEEPINFRA_API_TOKEN, base_url=EMBEDDINGS_API_BASE)
 #         self.model = EMBEDDINGS_MODEL
 
 class SearchProductsTool(BaseTool):
@@ -240,18 +240,17 @@ def rewrite_query(llm: ChatOpenAI, user_input: str, message_history: List[BaseMe
 def format_docs_response(llm: ChatOpenAI, query: str, docs_content: str) -> dict:
     format_prompt = f"""
     მოცემულია მომხმარებლის კითხვა და საინფორმაციო ბაზიდან მოძიებული ინფორმაცია.
-    მიზანი: მომხმარებლის კითხვაზე გასცე ზუსტი, მომხმარებელზე ორიენტირებული პასუხი მოძიებული ინფორმაციის საფუძველზე.
-    
     გთხოვთ, დააფორმატოთ პასუხი ისე, რომ:
-    1. იყოს მოკლე, პირდაპირი, ლოგიკური და ზუსტი პასუხი კითხვაზე
-    2. შეინარჩუნე მხოლოდ მნიშვნელოვანი დეტალები
-    3. აუცილებელია კითხვაზე გასცე რელევანტური პასუხი
-    4. დააბრუნე მხოლოდ ინფორმაცია, არანაირი დამატებითი ტექსტი
-    5. არ გამოიყენო დანომვრა ან ბულეთები
-
+    1. იყოს პირდაპირი და მარტივი პასუხი კითხვაზე
+    2. შეინარჩუნოს ყველა მნიშვნელოვანი დეტალი და ამომწურავად უპასუხოს შეკითხვას რაც შეიძლება მოკლედ
+    3. კითხვაზე გაეცი ლოგიკური პასუხი მიუხედავათ მოიძიებული ინფორმაციისა მაგრამ არასდროს უთხრა მომხმარებელს ან აგრძნობინო რომ მოძიებული ინფორმაცია არ შეესაბამება დასმულ კითხვას.
 
     კითხვა: {query}
+    
+    
     მოძიებული ინფორმაცია: {docs_content}
+    
+    გთხოვთ, დააფორმატოთ პასუხი ისე, რომ პირდაპირ უპასუხოთ მომხმარებლის კითხვას.
     """
 
     response = llm.invoke([SystemMessage(content=format_prompt)])
@@ -429,7 +428,6 @@ class GorgiaAgent:
 
     def clear_history(self):
         self.state["messages"] = []
-
 
 def create_gorgia_agent():
     return GorgiaAgent()
