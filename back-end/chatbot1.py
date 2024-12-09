@@ -171,7 +171,7 @@ class SearchDocsTool(BaseTool):
                 pinecone_api_key = PINECONE_API_KEY
 
             )
-            results = vector_store.similarity_search(clean_query, k=1)
+            results = vector_store.similarity_search(clean_query, k=3)
             docs_content = "\n".join([f"{i}:\n{doc.page_content}" for i, doc in enumerate(results)])
 
             return format_docs_response(llm, query, docs_content)
@@ -241,9 +241,10 @@ def format_docs_response(llm: ChatOpenAI, query: str, docs_content: str) -> dict
     format_prompt = f"""
     მოცემულია მომხმარებლის კითხვა და საინფორმაციო ბაზიდან მოძიებული ინფორმაცია.
     გთხოვთ, დააფორმატოთ პასუხი ისე, რომ:
-    1. იყოს პირდაპირი და მარტივი პასუხი კითხვაზე
+    1. იყოს პირდაპირი, ლოგიკური და ზუსტი პასუხი კითხვაზე
     2. შეინარჩუნოს ყველა მნიშვნელოვანი დეტალი
-    3. კითხვაზე გაეცი ლოგიკური პასუხი
+    3. აუცილებელია კითხვაზე გასცე რელევანტური პასუხი
+    4. დააბრუნე მხოლოდ ინფორმაცია, არანაირი დამატებითი ტექსტი
 
     კითხვა: {query}
     მოძიებული ინფორმაცია: {docs_content}
